@@ -57,6 +57,7 @@ public class RegisterActivity extends Activity {
         deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
         sendButton.setOnClickListener(v -> sendDeviceId());
+        WebSocketManager.connect(this);
 
     }
 
@@ -191,6 +192,6 @@ public class RegisterActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        WebSocketManager.close();
+//        WebSocketManager.close();
     }
 }

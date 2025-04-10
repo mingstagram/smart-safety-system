@@ -20,11 +20,16 @@ public class DeviceService {
 
     public DeviceBinding registerOrFindDevice(String deviceId) {
         return deviceBindingRepository.findByDeviceId(deviceId)
+                .map(device -> {
+                    device.setLastSeen(LocalDateTime.now()); // 🔥 접속 시점 기록
+                    return deviceBindingRepository.save(device);
+                })
                 .orElseGet(() -> {
                     DeviceBinding newDevice = DeviceBinding.builder()
                             .deviceId(deviceId)
                             .approved(false)
                             .createdAt(LocalDateTime.now())
+                            .lastSeen(LocalDateTime.now()) // 신규 기기 등록 시도
                             .build();
                     return deviceBindingRepository.save(newDevice);
                 });
@@ -41,16 +46,15 @@ public class DeviceService {
     public DeviceBinding updateDeviceApproval(String deviceId, boolean approved) {
         DeviceBinding device  = deviceBindingRepository.findByDeviceId(deviceId)
                 .orElseThrow(() -> new RuntimeException("기기를 찾을 수 없습니다: " + deviceId));
-        device .setApproved(approved);
-        deviceBindingRepository.save(device);
+        device.setApproved(approved);
 
         // 승인 해제 된 경우 -> 소켓으로 알림 전송
         if (!approved) {
-            System.out.println("1111");
+            device.setLastSeen(null); // ← 요거 추가!
             HeartRateWebSocketHandler.sendMessageToDevice(deviceId, "REVOKED");
         }
 
-        return device;
+        return deviceBindingRepository.save(device);
 
     }
 

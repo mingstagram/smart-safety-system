@@ -2,6 +2,7 @@ package com.traveloo.server.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.traveloo.server.repository.DeviceBindingRepository;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +27,9 @@ public class HeartRateWebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private DeviceBindingRepository deviceBindingRepository;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -40,6 +45,11 @@ public class HeartRateWebSocketHandler extends TextWebSocketHandler {
                String deviceId = node.get("deviceId").asText();
                sessionMap.put(deviceId, session);
                System.out.println("📌 deviceId 등록됨: " + deviceId);
+               // 🔥 마지막 접속 시간 갱신
+               deviceBindingRepository.findByDeviceId(deviceId).ifPresent(d -> {
+                   d.setLastSeen(LocalDateTime.now());
+                   deviceBindingRepository.save(d);
+               });
                return;
            }
 
@@ -81,6 +91,18 @@ public class HeartRateWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage(message));
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+        }
+    }
+
+    public void sendRevokeMessage(String deviceId) {
+        WebSocketSession session = sessionMap.get(deviceId);
+        if (session != null && session.isOpen()) {
+            try {
+                session.sendMessage(new TextMessage("REVOKED"));
+                System.out.println("REVOKED 메시지 전송됨 -> " + deviceId);
+            } catch (Exception e) {
+                System.err.println("REVOKED 전송 실패: " + e.getMessage());
             }
         }
     }

@@ -27,6 +27,8 @@ const DeviceManagement = () => {
 
   useEffect(() => {
     fetchDevices();
+    const interval = setInterval(fetchDevices, 5000); // 5초마다 새로 불러오기
+    return () => clearInterval(interval); // 컴포넌트 언마운트 시 정리
   }, []);
 
   const fetchDevices = async () => {
@@ -41,12 +43,26 @@ const DeviceManagement = () => {
   };
 
   const handleApprove = async (deviceId, approved) => {
+    // 1. Optimistic Update (화면만 먼저 변경)
+    const updatedDevices = devices.map((d) =>
+      d.deviceId === deviceId
+        ? {
+            ...d,
+            approved: !approved,
+            lastSeen: approved ? null : d.lastSeen, // 승인 해제 시 lastSeen null 처리
+          }
+        : d
+    );
+    setDevices(updatedDevices);
+
     try {
+      // 2. 실제 서버 승인 요청
       await approveDevice(deviceId, !approved);
       showSnackbar(`기기 ${!approved ? "승인" : "비승인"} 처리되었습니다.`);
-      fetchDevices();
     } catch (error) {
+      // 3. 실패 시 롤백
       showSnackbar("기기 승인 처리 중 오류가 발생했습니다.", "error");
+      setDevices(devices); // 기존 상태 복원
     }
   };
 
@@ -83,6 +99,7 @@ const DeviceManagement = () => {
           <TableHead>
             <TableRow>
               <TableCell>기기 ID</TableCell>
+              <TableCell>앱 등록 상태</TableCell>
               <TableCell>승인 상태</TableCell>
               <TableCell>등록 일자</TableCell>
               <TableCell align="right">작업</TableCell>
@@ -93,6 +110,17 @@ const DeviceManagement = () => {
               devices.map((device) => (
                 <TableRow key={device.id}>
                   <TableCell>{device.deviceId}</TableCell>
+
+                  {/* 🔥 앱 등록 여부 판단 */}
+                  <TableCell>
+                    {device.lastSeen ? (
+                      <Typography color="success.main" fontWeight={500}>
+                        📡 등록됨
+                      </Typography>
+                    ) : (
+                      <Typography color="text.secondary">📴 미등록</Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {device.approved ? "✅ 승인됨" : "❌ 미승인"}
                   </TableCell>
